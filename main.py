@@ -1,10 +1,11 @@
 import sys
 import socket
-import threading
+from threading import Thread
 import time
 from typing import Dict, List, Tuple, Union
 import signal
 import ipaddress
+import argparse
 
 # this is client side
 
@@ -60,7 +61,6 @@ class FileAppClient:
         # After updating, send an ACK message to the server
         self.client_table = self.deserialize_table(table_data)
         self.udp_socket.sendto("ACK".encode(), (self.server_ip, self.server_port))
-        print(">>> [Client table updated.]")
 
     def deserialize_table(self, table_data: str) -> Dict[str, Dict[str, Union[str, int, List[str], bool]]]:
         table = {}
@@ -87,6 +87,18 @@ class FileAppClient:
 
     def run(self):
         while True:
+            # Check for incoming table updates from the server
+            data, addr = self.udp_socket.recvfrom(1024)
+            message = data.decode().split(" ", 1)
+            if message[0] == "UPDATE":
+                old_table = self.client_table.copy()
+                self.update_client_table(message[1])
+                if old_table != self.client_table:
+                    print("\n>>> [Client table updated.]", end="", flush=True)
+                    print("\nEnter command (table/help/quit): ", end="", flush=True)
+
+    def handle_input(self):
+        while True:
             command = input("Enter command (table/help/quit): ").strip().lower()
 
             if command == "table":
@@ -101,6 +113,7 @@ class FileAppClient:
                 break
             else:
                 print("Unknown command. Type 'help' for available commands.")
+
 
 # -----------------------
 # this is server side
@@ -130,6 +143,8 @@ class FileAppServer:
             elif message[0] == "DISCONNECT":
                 self.handle_disconnect(message[1:])
                 self.print_client_table()
+            elif message[0] == "ACK":
+                pass  # Do nothing, just acknowledge the receipt of the update
 
     def handle_registration(self, message, addr):
         name, ip, udp_port, tcp_port = message
@@ -145,6 +160,7 @@ class FileAppServer:
             }
             table_data = self.serialize_table()
             self.udp_socket.sendto(f"WELCOME {table_data}".encode(), addr)
+            self.broadcast_table()
 
     def serialize_table(self) -> str:
         rows = []
@@ -176,51 +192,35 @@ class FileAppServer:
             print(f"{name}: {info}")
         print("\n")
 
+    def broadcast_table(self):
+        table_data = self.serialize_table()
+        for name, info in self.client_table.items():
+            if info['online']:
+                addr = (info['ip'], info['udp_port'])
+                self.udp_socket.sendto(f"UPDATE {table_data}".encode(), addr)
+
+    def run(self):
+        print(f"Server started on port {self.port}. Waiting for incoming messages...")
+        self.listen_udp()
+
 
 if __name__ == "__main__":
-    args = sys.argv
-    if len(args) < 2:
-        print("Usage: FileApp -c|-s ...")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="File Transfer App")
+    parser.add_argument("-s", "--server", type=int, help="Start a server at the specified port")
+    parser.add_argument("-c", "--client", nargs=5, help="Start a client with: name, server IP, server port, udp port, tcp port")
 
-    mode = args[1]
-    if mode == "-s":
-        if len(args) != 3:
-            print("Usage: FileApp -s <port>")
-            sys.exit(1)
+    args = parser.parse_args()
 
-        server_port = int(args[2])
-        if not FileAppServer.is_valid_port(server_port):
-            print("Invalid server port. Port must be in the range 1024-65535.")
-            sys.exit(1)
-
-        server = FileAppServer(server_port)
-        print(f"Server started on port {server_port}. Waiting for incoming messages...")
-        server.listen_udp()
-
-
-    elif mode == "-c":
-
-        if len(args) != 7:
-            print("Usage: FileApp -c <name> <server-ip> <server-port> <client-udp-port> <client-tcp-port> [-t]")
-            sys.exit(1)
-
-        client_name, server_ip, server_port, client_udp_port, client_tcp_port = args[2:7]
-
-        if not FileAppServer.is_valid_ip(server_ip):
-            print("Invalid server IP address. Must be in decimal format.")
-            sys.exit(1)
-
-        server_port, client_udp_port, client_tcp_port = map(int, [server_port, client_udp_port, client_tcp_port])
-        if not all(map(FileAppServer.is_valid_port, [server_port, client_udp_port, client_tcp_port])):
-            print("Invalid port number(s). Port must be in the range 1024-65535.")
-            sys.exit(1)
-
-        client = FileAppClient(client_name, server_ip, server_port, client_udp_port, client_tcp_port)
+    if args.server:
+        server = FileAppServer(args.server)
+        server.run()
+    elif args.client:
+        name, server_ip, server_port, udp_port, tcp_port = args.client
+        client = FileAppClient(name, server_ip, int(server_port), int(udp_port), int(tcp_port))
         client.register()
-        client.listen_for_disconnect()
-        client.run()
-
+        client_thread = Thread(target=client.run)
+        client_thread.start()
+        client.handle_input()
     else:
-        print("Invalid mode. Use -s for server or -c for client.")
-        sys.exit(1)
+        print("Invalid usage. Use '-h' or '--help' for help.")
+
