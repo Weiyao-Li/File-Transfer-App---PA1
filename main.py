@@ -76,43 +76,58 @@ class FileAppClient:
         return table
 
     def listen_for_disconnect(self):
-        signal.signal(signal.SIGINT, self.handle_disconnect)
+        signal.signal(signal.SIGINT, self.sigint_handler)
 
-    def handle_disconnect(self, signum, frame):
-        message = f"DISCONNECT {self.name}"
-        self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
+    def sigint_handler(self, signum, frame):
+        self.handle_disconnect(silent=True)
+    def handle_disconnect(self, silent: bool = False):
+        if not silent:
+            message = f"DISCONNECT {self.name}"
+            self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
+
         self.udp_socket.close()
         self.tcp_socket.close()
         sys.exit(0)
 
-    def run(self):
-        while True:
-            # Check for incoming table updates from the server
-            data, addr = self.udp_socket.recvfrom(1024)
-            message = data.decode().split(" ", 1)
-            if message[0] == "UPDATE":
-                old_table = self.client_table.copy()
-                self.update_client_table(message[1])
-                if old_table != self.client_table:
-                    print("\n>>> [Client table updated.]", end="", flush=True)
-                    print("\nEnter command (table/help/quit): ", end="", flush=True)
-
     def handle_input(self):
         while True:
-            command = input("Enter command (table/help/quit): ").strip().lower()
+            try:
+                command = input("Enter command (table/help/disconnect): ").strip().lower()
 
-            if command == "table":
-                self.print_client_table()
-            elif command == "help":
-                print("Available commands:")
-                print("  table - print the client table")
-                print("  help  - show this help message")
-                print("  quit  - disconnect and exit")
-            elif command == "quit":
-                self.handle_disconnect(None, None)
+                if command == "table":
+                    self.print_client_table()
+                elif command == "help":
+                    print("Available commands:")
+                    print("  table      - print the client table")
+                    print("  help       - show this help message")
+                    print("  disconnect - disconnect and notify the server")
+                elif command == "disconnect":
+                    self.handle_disconnect(silent=False)
+                    break
+                else:
+                    print("Unknown command. Type 'help' for available commands.")
+            except KeyboardInterrupt:
+                self.handle_disconnect(silent=False)
                 break
-            else:
-                print("Unknown command. Type 'help' for available commands.")
+
+
+
+    def run(self):
+        while True:
+            try:
+                # Check for incoming table updates from the server
+                data, addr = self.udp_socket.recvfrom(1024)
+                message = data.decode().split(" ", 1)
+                if message[0] == "UPDATE":
+                    old_table = self.client_table.copy()
+                    self.update_client_table(message[1])
+                    if old_table != self.client_table:
+                        print("\n>>> [Client table updated.]", end="", flush=True)
+                        print("\nEnter command (table/help/quit): ", end="", flush=True)
+            except OSError:
+                break
+
+
 
 
 # -----------------------
@@ -173,6 +188,7 @@ class FileAppServer:
         name = message[0]
         if name in self.client_table:
             self.client_table[name]["online"] = False
+            self.broadcast_table()
 
     @staticmethod
     def is_valid_ip(ip: str) -> bool:
@@ -223,4 +239,3 @@ if __name__ == "__main__":
         client.handle_input()
     else:
         print("Invalid usage. Use '-h' or '--help' for help.")
-
