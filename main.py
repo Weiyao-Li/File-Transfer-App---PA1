@@ -2,7 +2,7 @@ import sys
 import socket
 import threading
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 import signal
 import ipaddress
 
@@ -55,6 +55,13 @@ class FileAppClient:
             print(f"{name}: {info}")
         print("\n")
 
+    # def update_client_table(self, table_data):
+    #     # Deserialize the table_data and update self.client_table
+    #     # After updating, send an ACK message to the server
+    #     self.client_table = self.deserialize_table(table_data)
+    #     self.udp_socket.sendto("ACK".encode(), (self.server_ip, self.server_port))
+    #     print(">>> [Client table updated.]")
+
     def update_client_table(self, table_data):
         # Deserialize the table_data and update self.client_table
         # After updating, send an ACK message to the server
@@ -62,11 +69,17 @@ class FileAppClient:
         self.udp_socket.sendto("ACK".encode(), (self.server_ip, self.server_port))
         print(">>> [Client table updated.]")
 
-    def deserialize_table(self, table_data: str) -> Dict[str, Tuple[str, str, List[str]]]:
+    def deserialize_table(self, table_data: str) -> Dict[str, Dict[str, Union[str, int, List[str], bool]]]:
         table = {}
         for row in table_data.strip().split('\n'):
-            name, ip, tcp_port, *files = row.split(' ')
-            table[name] = (ip, tcp_port, files)
+            name, ip, udp_port, tcp_port, *files = row.split(' ')
+            table[name] = {
+                "ip": ip,
+                "udp_port": int(udp_port),
+                "tcp_port": int(tcp_port),
+                "files": files,
+                "online": self.client_table.get(name, {}).get("online", True)
+            }
         return table
 
     def listen_for_disconnect(self):
@@ -125,6 +138,20 @@ class FileAppServer:
                 self.handle_disconnect(message[1:])
                 self.print_client_table()
 
+    # def handle_registration(self, message, addr):
+    #     name, ip, udp_port, tcp_port = message
+    #     if name in self.client_table:
+    #         self.udp_socket.sendto("ERROR".encode(), addr)
+    #     else:
+    #         self.client_table[name] = {
+    #             "ip": ip,
+    #             "udp_port": int(udp_port),
+    #             "tcp_port": int(tcp_port),
+    #             "files": [],
+    #             "online": True
+    #         }
+    #         table_data = self.serialize_table()
+    #         self.udp_socket.sendto(f"WELCOME {table_data}".encode(), addr)
     def handle_registration(self, message, addr):
         name, ip, udp_port, tcp_port = message
         if name in self.client_table:
@@ -140,10 +167,17 @@ class FileAppServer:
             table_data = self.serialize_table()
             self.udp_socket.sendto(f"WELCOME {table_data}".encode(), addr)
 
+    # def serialize_table(self) -> str:
+    #     rows = []
+    #     for name, info in self.client_table.items():
+    #         row = f"{name} {info['ip']} {info['tcp_port']} {' '.join(info['files'])}"
+    #         rows.append(row)
+    #     return '\n'.join(rows)
+
     def serialize_table(self) -> str:
         rows = []
         for name, info in self.client_table.items():
-            row = f"{name} {info['ip']} {info['tcp_port']} {' '.join(info['files'])}"
+            row = f"{name} {info['ip']} {info['udp_port']} {info['tcp_port']} {' '.join(info['files'])}"
             rows.append(row)
         return '\n'.join(rows)
 
@@ -218,4 +252,3 @@ if __name__ == "__main__":
     else:
         print("Invalid mode. Use -s for server or -c for client.")
         sys.exit(1)
-
