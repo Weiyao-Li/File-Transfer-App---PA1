@@ -65,13 +65,13 @@ class FileAppClient:
     def deserialize_table(self, table_data: str) -> Dict[str, Dict[str, Union[str, int, List[str], bool]]]:
         table = {}
         for row in table_data.strip().split('\n'):
-            name, ip, udp_port, tcp_port, *files = row.split(' ')
+            name, ip, udp_port, tcp_port, online, *files = row.split(' ')
             table[name] = {
                 "ip": ip,
                 "udp_port": int(udp_port),
                 "tcp_port": int(tcp_port),
                 "files": files,
-                "online": self.client_table.get(name, {}).get("online", True)
+                "online": bool(int(online))
             }
         return table
 
@@ -80,6 +80,7 @@ class FileAppClient:
 
     def sigint_handler(self, signum, frame):
         self.handle_disconnect(silent=True)
+
     def handle_disconnect(self, silent: bool = False):
         if not silent:
             message = f"DISCONNECT {self.name}"
@@ -180,7 +181,7 @@ class FileAppServer:
     def serialize_table(self) -> str:
         rows = []
         for name, info in self.client_table.items():
-            row = f"{name} {info['ip']} {info['udp_port']} {info['tcp_port']} {' '.join(info['files'])}"
+            row = f"{name} {info['ip']} {info['udp_port']} {info['tcp_port']} {int(info['online'])} {' '.join(info['files'])}"
             rows.append(row)
         return '\n'.join(rows)
 
@@ -214,6 +215,8 @@ class FileAppServer:
             if info['online']:
                 addr = (info['ip'], info['udp_port'])
                 self.udp_socket.sendto(f"UPDATE {table_data}".encode(), addr)
+            else:
+                self.udp_socket.sendto(f"DISCONNECTED {name}".encode(), (info['ip'], info['udp_port']))
 
     def run(self):
         print(f"Server started on port {self.port}. Waiting for incoming messages...")
