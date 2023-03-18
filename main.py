@@ -144,6 +144,11 @@ class FileAppClient:
             print(">>> [No valid files to offer.]")
             return
 
+        # Update client's own table with the offered files
+        for filename in filenames:
+            if filename not in self.client_table[self.name]["files"]:
+                self.client_table[self.name]["files"].append(filename)
+
         message = f"OFFER {self.name} {' '.join(filenames)}"
         self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
 
@@ -156,6 +161,8 @@ class FileAppClient:
                 return
 
         print(">>> [No ACK from Server, please try again later.]")
+
+
 # -----------------------
 # this is server side
 
