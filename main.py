@@ -211,14 +211,14 @@ class FileAppServer:
 
     def handle_registration(self, message, addr):
         name, ip, udp_port, tcp_port = message
-        if name in self.client_table:
+        if name in self.client_table and self.client_table[name]["online"]:
             self.udp_socket.sendto("ERROR".encode(), addr)
         else:
             self.client_table[name] = {
                 "ip": ip,
                 "udp_port": int(udp_port),
                 "tcp_port": int(tcp_port),
-                "files": [],
+                "files": self.client_table.get(name, {}).get("files", []),
                 "online": True
             }
             table_data = self.serialize_table()
