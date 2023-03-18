@@ -203,7 +203,9 @@ class FileAppServer:
 
         if client_name in self.client_table:
             client = self.client_table[client_name]
-            client["files"] = list(set(client["files"] + offered_files))
+            for filename in offered_files:
+                if filename not in client["files"]:
+                    client["files"].append(filename)
             self.broadcast_table()
             self.udp_socket.sendto("ACK".encode(), (client["ip"], client["udp_port"]))
 
