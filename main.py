@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple, Union
 import signal
 import ipaddress
 import argparse
+import os
 
 # this is client side
 
@@ -111,8 +112,6 @@ class FileAppClient:
                 self.handle_disconnect(silent=False)
                 break
 
-
-
     def run(self):
         while True:
             try:
@@ -128,9 +127,35 @@ class FileAppClient:
             except OSError:
                 break
 
+    def setdir(self, dir: str):
+        if os.path.isdir(dir):
+            self.dir = dir
+            print(f">>> [Successfully set {dir} as the directory for searching offered files.]")
+        else:
+            print(f">>> [setdir failed: {dir} does not exist.]")
 
+    def offer(self, *filenames: str):
+        if not hasattr(self, "dir"):
+            print(">>> [Error: setdir must be called before offering files.]")
+            return
 
+        filenames = [filename for filename in filenames if os.path.isfile(os.path.join(self.dir, filename))]
+        if not filenames:
+            print(">>> [No valid files to offer.]")
+            return
 
+        message = f"OFFER {self.name} {' '.join(filenames)}"
+        self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
+
+        # Wait for ack from the server
+        start_time = time.time()
+        while time.time() - start_time < 0.5:
+            data, addr = self.udp_socket.recvfrom(1024)
+            if data.decode() == "ACK":
+                print(">>> [Offer Message received by Server.]")
+                return
+
+        print(">>> [No ACK from Server, please try again later.]")
 # -----------------------
 # this is server side
 
@@ -161,6 +186,19 @@ class FileAppServer:
                 self.print_client_table()
             elif message[0] == "ACK":
                 pass  # Do nothing, just acknowledge the receipt of the update
+            elif message[0] == "OFFER":
+                self.handle_offer(message[1:])
+                self.print_client_table()
+
+    def handle_offer(self, message):
+        client_name = message[0]
+        offered_files = message[1:]
+
+        if client_name in self.client_table:
+            client = self.client_table[client_name]
+            client["files"] = list(set(client["files"] + offered_files))
+            self.broadcast_table()
+            self.udp_socket.sendto("ACK".encode(), (client["ip"], client["udp_port"]))
 
     def handle_registration(self, message, addr):
         name, ip, udp_port, tcp_port = message
@@ -239,6 +277,38 @@ if __name__ == "__main__":
         client.register()
         client_thread = Thread(target=client.run)
         client_thread.start()
-        client.handle_input()
+
+        while True:
+            try:
+                command = input("Enter command (setdir/offer/table/help/disconnect): ").strip().lower()
+                if command.startswith("setdir"):
+                    command_split = command.split(" ", 1)
+                    if len(command_split) == 2:
+                        _, dir = command_split
+                        client.setdir(dir)
+                    else:
+                        print(">>> [Error: setdir command requires a directory argument. Usage: setdir <directory>]")
+
+                elif command.startswith("offer"):
+                    _, *filenames = command.split(" ")
+                    client.offer(*filenames)
+                elif command == "table":
+                    client.print_client_table()
+                elif command == "help":
+                    print("Available commands:")
+                    print("  setdir      - set the directory for searching offered files")
+                    print("  offer       - offer one or more files to other clients")
+                    print("  table       - print the client table")
+                    print("  help        - show this help message")
+                    print("  disconnect  - disconnect and notify the server")
+                elif command == "disconnect":
+                    client.handle_disconnect(silent=False)
+                    break
+                else:
+                    print("Unknown command. Type 'help' for available commands.")
+            except KeyboardInterrupt:
+                client.handle_disconnect(silent=False)
+                break
+
     else:
         print("Invalid usage. Use '-h' or '--help' for help.")
