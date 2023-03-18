@@ -134,7 +134,7 @@ class FileAppClient:
         else:
             print(f">>> [setdir failed: {dir} does not exist.]")
 
-    def offer(self, *filenames: str):
+    def offer(self, *filenames: str, retry: int = 2):
         if not hasattr(self, "dir"):
             print(">>> [Error: setdir must be called before offering files.]")
             return
@@ -153,12 +153,15 @@ class FileAppClient:
         self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
 
         # Wait for ack from the server
-        start_time = time.time()
-        while time.time() - start_time < 0.5:
-            data, addr = self.udp_socket.recvfrom(1024)
-            if data.decode() == "ACK":
-                print(">>> [Offer Message received by Server.]")
-                return
+        attempts = 0
+        while attempts <= retry:
+            start_time = time.time()
+            while time.time() - start_time < 0.5:
+                data, addr = self.udp_socket.recvfrom(1024)
+                if data.decode() == "ACK":
+                    print(">>> [Offer Message received by Server.]")
+                    return
+            attempts += 1
 
         print(">>> [No ACK from Server, please try again later.]")
 
