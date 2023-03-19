@@ -111,6 +111,21 @@ class FileAppClient:
             except KeyboardInterrupt:
                 self.handle_disconnect(silent=False)
                 break
+    def list_files(self):
+        file_list = []
+        for name, info in self.client_table.items():
+            for file in info['files']:
+                file_list.append((file, name))
+
+        if not file_list:
+            print(">>> [No files available for download at the moment.]")
+            return
+
+        print("\nFile Offerings:")
+        file_list.sort(key=lambda x: (x[0], x[1]))
+        for file, name in file_list:
+            print(f"{file} - offered by {name}")
+        print("\n")
 
     def run(self):
         while True:
@@ -292,7 +307,7 @@ if __name__ == "__main__":
 
         while True:
             try:
-                command = input("Enter command (setdir/offer/table/help/disconnect): ").strip().lower()
+                command = input("Enter command (setdir/offer/table/help/list/disconnect): ").strip().lower()
                 if command.startswith("setdir"):
                     command_split = command.split(" ", 1)
                     if len(command_split) == 2:
@@ -306,6 +321,8 @@ if __name__ == "__main__":
                     client.offer(*filenames)
                 elif command == "table":
                     client.print_client_table()
+                elif command == "list":
+                    client.list_files()
                 elif command == "help":
                     print("Available commands:")
                     print("  setdir      - set the directory for searching offered files")
