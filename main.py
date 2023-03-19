@@ -130,19 +130,22 @@ class FileAppClient:
     def request_file(self, filename: str, target_client: str):
         target_client = target_client.lower()  # Convert the provided client name to lowercase
 
-        if target_client == self.name.lower():  # Compare lowercase client names
-            print(">>> Invalid Request: You cannot request files from yourself.")
-            return
+        # Search for the target client in the client_table using a case-insensitive comparison
+        matching_client = None
+        for name in self.client_table:
+            if name.lower() == target_client:
+                matching_client = name
+                break
 
-        if target_client not in self.client_table:
+        if not matching_client:
             print(f">>> Invalid Request: Client '{target_client}' does not exist in the client table.")
             return
 
-        if filename not in self.client_table[target_client]['files']:
-            print(f">>> Invalid Request: File '{filename}' is not available from client '{target_client}'.")
+        if filename not in self.client_table[matching_client]['files']:
+            print(f">>> Invalid Request: File '{filename}' is not available from client '{matching_client}'.")
             return
 
-        file_owner = self.client_table[target_client]
+        file_owner = self.client_table[matching_client]
         ip = file_owner["ip"]
         tcp_port = file_owner["tcp_port"]
 
