@@ -127,6 +127,48 @@ class FileAppClient:
             print(f"{file} - offered by {name}")
         print("\n")
 
+    def request_file(self, filename: str, target_client: str):
+        target_client = target_client.lower()  # Convert the provided client name to lowercase
+
+        if target_client == self.name.lower():  # Compare lowercase client names
+            print(">>> Invalid Request: You cannot request files from yourself.")
+            return
+
+        if target_client not in self.client_table:
+            print(f">>> Invalid Request: Client '{target_client}' does not exist in the client table.")
+            return
+
+        if filename not in self.client_table[target_client]['files']:
+            print(f">>> Invalid Request: File '{filename}' is not available from client '{target_client}'.")
+            return
+
+        file_owner = self.client_table[target_client]
+        ip = file_owner["ip"]
+        tcp_port = file_owner["tcp_port"]
+
+        try:
+            # Establish a TCP connection with the file owner
+            self.tcp_socket.connect((ip, tcp_port))
+            print("<TCP connection established with file owner>")
+
+            # Send a request for the file
+            self.tcp_socket.sendall(f"REQUEST {filename}".encode())
+
+            # Receive the file
+            with open(os.path.join(self.dir, filename), 'wb') as file:
+                data = self.tcp_socket.recv(1024)
+                print("<Receiving first data packet>")
+                while data:
+                    file.write(data)
+                    data = self.tcp_socket.recv(1024)
+
+            print("<File transfer complete>")
+
+        except Exception as e:
+            print(f">>> Error requesting file: {str(e)}")
+        finally:
+            self.tcp_socket.close()
+
     def run(self):
         while True:
             try:
@@ -307,7 +349,7 @@ if __name__ == "__main__":
 
         while True:
             try:
-                command = input("Enter command (setdir/offer/table/help/list/disconnect): ").strip().lower()
+                command = input("Enter command (setdir/offer/table/help/list/request/disconnect): ").strip().lower()
                 if command.startswith("setdir"):
                     command_split = command.split(" ", 1)
                     if len(command_split) == 2:
@@ -323,6 +365,14 @@ if __name__ == "__main__":
                     client.print_client_table()
                 elif command == "list":
                     client.list_files()
+                elif command.startswith("request"):
+                    command_split = command.split(" ")
+                    if len(command_split) == 3:
+                        _, filename, target_client = command_split
+                        client.request_file(filename, target_client)
+                    else:
+                        print(
+                            ">>> [Error: request command requires a filename and client name. Usage: request <filename> <client>]")
                 elif command == "help":
                     print("Available commands:")
                     print("  setdir      - set the directory for searching offered files")
