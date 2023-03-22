@@ -185,14 +185,20 @@ class FileAppClient:
 
             # Send a request for the file
             request_tcp_socket.sendall(f"REQUEST {filename}".encode())
+            print("Sent file request")
 
+            # Receive the file size
+            file_size_str = request_tcp_socket.recv(1024).decode()
+            print(f"Received file size string: {file_size_str}")
+            file_size = int(file_size_str)
+            print(f"Received file size: {file_size}")
             # Receive the file
             with open(os.path.join(self.dir, filename), 'wb') as file:
-                data = request_tcp_socket.recv(1024)
-                print("<Receiving first data packet>")
-                while data:
-                    file.write(data)
+                received_size = 0
+                while received_size < file_size:
                     data = request_tcp_socket.recv(1024)
+                    received_size += len(data)
+                    file.write(data)
 
             print("<File transfer complete>")
 
@@ -212,17 +218,28 @@ class FileAppClient:
             conn, addr = tcp_server_socket.accept()
             print(f"<TCP Connection established with {addr[0]}:{addr[1]}>")
 
-            request_handler = threading.Thread(target=FileAppClient.handle_incoming_request, args=(conn, addr))
+            request_handler = threading.Thread(target=self.handle_incoming_request, args=(conn, addr))
 
             request_handler.start()
 
     def handle_incoming_request(self, conn, addr):
-        filename = conn.recv(1024).decode()
+        received_message = conn.recv(1024).decode()
+        print(f"Received request: {received_message}")
+
+        # Extract the filename from the received message
+        command, filename = received_message.split(" ", 1)
+
         file_path = os.path.join(self.dir, filename)
         print(f"<Sending file '{filename}' to {addr[0]}:{addr[1]}>")
 
         if os.path.isfile(file_path):
-            with open(filename, "rb") as f:
+            file_size = os.path.getsize(file_path)
+            print(f"File size: {file_size}")
+
+            conn.send(str(file_size).encode())
+            print(f"Sent file size: {file_size}")
+
+            with open(file_path, "rb") as f:
                 while True:
                     data = f.read(1024)
                     if not data:
