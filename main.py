@@ -306,6 +306,25 @@ class FileAppClient:
 
         print(">>> [No ACK from Server, please try again later.]")
 
+    def deregister(self):
+        message = f"DEREG {self.name}"
+        self.udp_socket.settimeout(0.5)
+
+        for _ in range(3):
+            self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
+            try:
+                data, addr = self.udp_socket.recvfrom(1024)
+                response = data.decode()
+                if response == "ACK":
+                    print(">>> [You are Offline. Bye.]")
+                    return
+                else:
+                    print(">>> [Server not responding]")
+            except socket.timeout:
+                print(">>> [Server not responding]")
+        print(">>> [Exiting]")
+        sys.exit(1)
+
 
 # -----------------------
 # this is server side
@@ -332,14 +351,26 @@ class FileAppServer:
             if message[0] == "REGISTER":
                 self.handle_registration(message[1:], addr)
                 self.print_client_table()
-            elif message[0] == "DISCONNECT":
-                self.handle_disconnect(message[1:])
+            elif message[0] == "DEREG":  # Change 'DISCONNECT' to 'DEREG' to match client's message
+                self.handle_deregistration(message[1:], addr)
                 self.print_client_table()
             elif message[0] == "ACK":
                 pass  # Do nothing, just acknowledge the receipt of the update
             elif message[0] == "OFFER":
                 self.handle_offer(message[1:])
                 self.print_client_table()
+
+    def handle_deregistration(self, message, addr):
+        nickname = message[0]
+
+        if nickname in self.client_table:
+            self.client_table[nickname]["online"] = False
+            self.udp_socket.sendto("ACK".encode(), addr)
+
+            # Broadcast the updated client_table to all online clients
+            self.broadcast_table()
+        else:
+            print(f">>> Invalid de-registration request: Client '{nickname}' not found.")
 
     def handle_offer(self, message):
         client_name = message[0]
@@ -441,7 +472,7 @@ if __name__ == "__main__":
 
         while True:
             try:
-                command = input("Enter command (setdir/offer/table/help/list/request/disconnect): ").strip().lower()
+                command = input("Enter command (setdir/offer/table/help/list/request/dereg/disconnect): ").strip().lower()
                 if command.startswith("setdir"):
                     command_split = command.split(" ", 1)
                     if len(command_split) == 2:
@@ -465,6 +496,9 @@ if __name__ == "__main__":
                     else:
                         print(
                             ">>> [Error: request command requires a filename and client name. Usage: request <filename> <client>]")
+                elif command == "dereg":
+                    client.deregister()
+
                 elif command == "help":
                     print("Available commands:")
                     print("  setdir      - set the directory for searching offered files")
@@ -475,6 +509,7 @@ if __name__ == "__main__":
                 elif command == "disconnect":
                     client.handle_disconnect(silent=False)
                     break
+
                 else:
                     print("Unknown command. Type 'help' for available commands.")
             except KeyboardInterrupt:
