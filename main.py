@@ -1,5 +1,6 @@
 import sys
 import socket
+import threading
 from threading import Thread
 import time
 from typing import Dict, List, Tuple, Union
@@ -94,7 +95,8 @@ class FileAppClient:
     def handle_input(self):
         while True:
             try:
-                command = input("Enter command (table/help/disconnect): ").strip().lower()
+                command = input("Enter command (table/help/disconnect/request/list/setdir/offer): ").strip().lower()
+                cmd_parts = command.split()
 
                 if command == "table":
                     self.print_client_table()
@@ -103,9 +105,17 @@ class FileAppClient:
                     print("  table      - print the client table")
                     print("  help       - show this help message")
                     print("  disconnect - disconnect and notify the server")
+                    print("  request <filename> <client> - request a file from another client")
                 elif command == "disconnect":
                     self.handle_disconnect(silent=False)
                     break
+                elif cmd_parts[0] == "request":
+                    if len(cmd_parts) == 3:
+                        filename, target_client = cmd_parts[1], cmd_parts[2]
+                        self.request_file(filename, target_client)
+                    else:
+                        print("Invalid request command. Usage: request <filename> <client>")
+                # Add other commands like list, setdir, and offer here
                 else:
                     print("Unknown command. Type 'help' for available commands.")
             except KeyboardInterrupt:
@@ -149,28 +159,65 @@ class FileAppClient:
         ip = file_owner["ip"]
         tcp_port = file_owner["tcp_port"]
 
+        # Create a new TCP socket for each request
+        request_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
         try:
             # Establish a TCP connection with the file owner
-            self.tcp_socket.connect((ip, tcp_port))
+            request_tcp_socket.connect((ip, tcp_port))
             print("<TCP connection established with file owner>")
 
             # Send a request for the file
-            self.tcp_socket.sendall(f"REQUEST {filename}".encode())
+            request_tcp_socket.sendall(f"REQUEST {filename}".encode())
 
             # Receive the file
             with open(os.path.join(self.dir, filename), 'wb') as file:
-                data = self.tcp_socket.recv(1024)
+                data = request_tcp_socket.recv(1024)
                 print("<Receiving first data packet>")
                 while data:
                     file.write(data)
-                    data = self.tcp_socket.recv(1024)
+                    data = request_tcp_socket.recv(1024)
 
             print("<File transfer complete>")
 
         except Exception as e:
             print(f">>> Error requesting file: {str(e)}")
         finally:
-            self.tcp_socket.close()
+            request_tcp_socket.close()
+
+    def start_tcp_server(self, port):
+        tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_server_socket.bind(('', port))
+        tcp_server_socket.listen(5)
+
+        print(f"TCP server started at :{port}")
+
+        while True:
+            conn, addr = tcp_server_socket.accept()
+            print(f"<TCP Connection established with {addr[0]}:{addr[1]}>")
+
+            request_handler = threading.Thread(target=FileAppClient.handle_incoming_request, args=(conn, addr))
+
+            request_handler.start()
+
+    def handle_incoming_request(self, conn, addr):
+        filename = conn.recv(1024).decode()
+        print(f"<Sending file '{filename}' to {addr[0]}:{addr[1]}>")
+
+        if os.path.isfile(filename):
+            with open(filename, "rb") as f:
+                while True:
+                    data = f.read(1024)
+                    if not data:
+                        break
+                    conn.sendall(data)
+
+            print(f"<File '{filename}' sent>")
+        else:
+            print(f"<Error: File '{filename}' not found>")
+
+        conn.close()
+        print(f"<TCP Connection closed with {addr[0]}:{addr[1]}>")
 
     def run(self):
         while True:
@@ -347,8 +394,13 @@ if __name__ == "__main__":
         name, server_ip, server_port, udp_port, tcp_port = args.client
         client = FileAppClient(name, server_ip, int(server_port), int(udp_port), int(tcp_port))
         client.register()
-        client_thread = Thread(target=client.run)
-        client_thread.start()
+
+        # Start the TCP server for handling file requests in a separate thread
+        tcp_server_thread = threading.Thread(target=client.start_tcp_server, args=(int(tcp_port),), daemon=True)
+
+        tcp_server_thread.start()
+
+        client.listen_for_disconnect()
 
         while True:
             try:
