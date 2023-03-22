@@ -34,6 +34,8 @@ class FileAppClient:
         # create client local table
         self.client_table = {}
 
+        self.dir = None
+
     def register(self):
         # create registration msg
         message = f"REGISTER {self.name} {socket.gethostbyname(socket.gethostname())} {self.client_udp_port} {self.client_tcp_port}"
@@ -93,6 +95,8 @@ class FileAppClient:
         sys.exit(0)
 
     def handle_input(self):
+        self.setdir(os.getcwd())
+
         while True:
             try:
                 command = input("Enter command (table/help/disconnect/request/list/setdir/offer): ").strip().lower()
@@ -100,6 +104,18 @@ class FileAppClient:
 
                 if command == "table":
                     self.print_client_table()
+                elif cmd_parts[0] == "setdir":
+                    if len(cmd_parts) == 2:
+                        self.setdir(cmd_parts[1])
+                    else:
+                        print("Invalid setdir command. Usage: setdir <directory>")
+                elif cmd_parts[0] == "offer":
+                    if len(cmd_parts) > 1:
+                        self.offer(*cmd_parts[1:])
+                    else:
+                        print("Invalid offer command. Usage: offer <filename1> <filename2> ...")
+                elif cmd_parts[0] == "list":
+                    self.list_files()
                 elif command == "help":
                     print("Available commands:")
                     print("  table      - print the client table")
@@ -202,9 +218,10 @@ class FileAppClient:
 
     def handle_incoming_request(self, conn, addr):
         filename = conn.recv(1024).decode()
+        file_path = os.path.join(self.dir, filename)
         print(f"<Sending file '{filename}' to {addr[0]}:{addr[1]}>")
 
-        if os.path.isfile(filename):
+        if os.path.isfile(file_path):
             with open(filename, "rb") as f:
                 while True:
                     data = f.read(1024)
@@ -242,7 +259,7 @@ class FileAppClient:
             print(f">>> [setdir failed: {dir} does not exist.]")
 
     def offer(self, *filenames: str, retry: int = 2):
-        if not hasattr(self, "dir"):
+        if self.dir is None:
             print(">>> [Error: setdir must be called before offering files.]")
             return
 
@@ -397,8 +414,11 @@ if __name__ == "__main__":
 
         # Start the TCP server for handling file requests in a separate thread
         tcp_server_thread = threading.Thread(target=client.start_tcp_server, args=(int(tcp_port),), daemon=True)
-
         tcp_server_thread.start()
+
+        # Start a separate thread for client.run() to listen for updates from the server
+        update_listener_thread = threading.Thread(target=client.run, daemon=True)
+        update_listener_thread.start()
 
         client.listen_for_disconnect()
 
