@@ -1,31 +1,39 @@
-# File Transfer App
+# File Transfer App (Weiyao Li, wl2872)
 
-## Weiyao Li, wl2872
 
-### Server Side
-
-_python main.py -s 5000_
-
-### Client Side
-#### Registration
-- **client1:** `python main.py -c Dave 127.0.0.1 5000 5008 5009`
-- **client2:** `python main.py -c Alice 127.0.0.1 5000 5004 5005`
-- **client3:** `python main.py -c Bob 127.0.0.1 5000 5002 5003`
-
-#### File Offering
-- **Set Directory:** `setdir /Users/weiyaoli/Desktop/testdir` (USE YOUR OWN TEST DIR)
-- **Offer Files:** `offer file1.py file2.pdf file3.pdf` (CREATE YOUR OWN TEST FILES)
-
-#### Ongoing
-...
-
-### Project Objective
+## Project Objective
 Implement a file transfer application with at least 3 clients and a server using both the TCP and UDP protocols where the overall system offers at least 10 unique files. The program has two modes of operation: the server and the client. The server instance is used to keep track of all the clients in the network along with their IP addresses and the files they are sharing. This information is pushed to clients, and the client instances use this to communicate directly with each other to initiate file transfers. All server-client communication is done over UDP, whereas clients communicate with each other over TCP.
 
-### Functionalities
+
+## Functionalities
 - Registration
 - File Offering
 - File Listing
 - File Transfer
 - De-registration
-- Testing
+
+## Command-Line Instructions:
+### Server Side
+_python main.py -s 5000_ <br/>
+(run the server first)
+
+### Client Side
+#### Registration
+- **Client1 (Dave):** `python main.py -c Dave 127.0.0.1 5000 5008 5009`
+- **Cient2 (Alice):** `python main.py -c Alice 127.0.0.1 5000 5004 5005`
+- **Client3 (Bob):** `python main.py -c Bob 127.0.0.1 5000 5002 5003`
+
+#### File Offering
+- **Set Directory:** `setdir /Users/weiyaoli/Desktop/testdir` (USE YOUR OWN TEST DIR1)
+- **Offer Files (single/multiple):** `offer file1.py file2.pdf file3.pdf` (CREATE YOUR OWN TEST FILES for 3)
+
+#### File Listing
+- **View Files:** `list`
+
+#### File Transfer
+- **Request File from Owner:** `request <filename> <file owner>` (example: request file1.pdf Dave)
+
+#### De-registration
+- **Active Client Book-Keeping:** `dereg`
+
+
