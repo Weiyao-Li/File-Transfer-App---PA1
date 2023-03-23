@@ -79,9 +79,6 @@ class FileAppClient:
             }
         return table
 
-    def listen_for_disconnect(self):
-        signal.signal(signal.SIGINT, self.sigint_handler)
-
     def sigint_handler(self, signum, frame):
         self.handle_disconnect(silent=True)
 
@@ -264,7 +261,6 @@ class FileAppClient:
                     self.update_client_table(message[1])
                     if old_table != self.client_table:
                         print("\n>>> [Client table updated.]", end="", flush=True)
-                        print("\nEnter command (table/help/quit): ", end="", flush=True)
             except OSError:
                 break
 
@@ -307,23 +303,24 @@ class FileAppClient:
         print(">>> [No ACK from Server, please try again later.]")
 
     def deregister(self):
-        message = f"DEREG {self.name}"
-        self.udp_socket.settimeout(0.5)
-
-        for _ in range(3):
-            self.udp_socket.sendto(message.encode(), (self.server_ip, self.server_port))
+        self.tcp_socket.close()
+        self.udp_socket.sendto(f"DEREG {self.name}".encode(), (self.server_ip, self.server_port))
+        attempts = 0
+        while attempts < 3:
+            self.udp_socket.settimeout(0.5)
             try:
-                data, addr = self.udp_socket.recvfrom(1024)
-                response = data.decode()
-                if response == "ACK":
+                response, _ = self.udp_socket.recvfrom(1024)
+                if response.decode() == "ACK":
                     print(">>> [You are Offline. Bye.]")
                     return
-                else:
-                    print(">>> [Server not responding]")
             except socket.timeout:
-                print(">>> [Server not responding]")
+                attempts += 1
+                self.udp_socket.sendto(f"DEREG {self.name}".encode(), (self.server_ip, self.server_port))
+
+        print(">>> [Server not responding]")
         print(">>> [Exiting]")
-        sys.exit(1)
+        sys.exit()
+
 
 
 # -----------------------
@@ -468,7 +465,7 @@ if __name__ == "__main__":
         update_listener_thread = threading.Thread(target=client.run, daemon=True)
         update_listener_thread.start()
 
-        client.listen_for_disconnect()
+        # client.listen_for_disconnect()
 
         while True:
             try:
@@ -498,6 +495,9 @@ if __name__ == "__main__":
                             ">>> [Error: request command requires a filename and client name. Usage: request <filename> <client>]")
                 elif command == "dereg":
                     client.deregister()
+
+
+
 
                 elif command == "help":
                     print("Available commands:")
