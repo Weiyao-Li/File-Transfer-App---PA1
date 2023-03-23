@@ -15,12 +15,12 @@ Implement a file transfer application with at least 3 clients and a server using
 ## Command-Line Instructions:
 ### Server Side
 _python main.py -s 5000_ <br/>
-(run the server first)
+(RUN THE SERVER FIRST)
 
 ### Client Side
 #### Registration
 - **Client1 (Dave):** `python main.py -c Dave 127.0.0.1 5000 5008 5009`
-- **Cient2 (Alice):** `python main.py -c Alice 127.0.0.1 5000 5004 5005`
+- **Client2 (Alice):** `python main.py -c Alice 127.0.0.1 5000 5004 5005`
 - **Client3 (Bob):** `python main.py -c Bob 127.0.0.1 5000 5002 5003`
 
 #### File Offering
