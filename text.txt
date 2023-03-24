@@ -85,3 +85,4 @@ PLEASE NOTE THAT in terminal 3 Alice the requester, you need to set receiving di
 DE-REGISTRATION SECTION
 
 1. run "dereg" command in the client terminal
+
