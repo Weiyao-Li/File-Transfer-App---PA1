@@ -1,0 +1,87 @@
+Detailed Instructions and Output Samples!
+
+-----------------------------------------------------------------------------------------------
+SERVER SIDE:
+1. open terminal 1
+2. python main.py -s 5000
+
+CLIENT SIDE:
+Here we have our 3 client: Dave, Alice and Bob ->
+
+python main.py -c Dave 127.0.0.1 5000 5008 5009
+python main.py -c Alice 127.0.0.1 5000 5004 5005
+python main.py -c Bob 127.0.0.1 5000 5002 5003
+
+For this:
+"Enter command (setdir/offer/table/help/list/request/dereg/disconnect):"
+
+using the following command would satisfy the project requirement:
+
+setdir: set directory
+offer: offer files
+table: display local table
+list: list files
+request: request files
+dereg: de-registration
+disconnect: exit
+
+-----------------------------------------------------------------------------------------------
+REGISTRATION SECTION
+
+1. open terminal 2, open terminal 3, open terminal 4
+2. run python main.py -c Dave 127.0.0.1 5000 5008 5009 in terminal 2
+3. run python main.py -c Alice 127.0.0.1 5000 5004 5005 in terminal 3
+4. run python main.py -c Bob 127.0.0.1 5000 5002 5003 in terminal 4
+
+    OUTPUT: you should see successful registration, local table initialized (you can also use table command to see it)
+
+Exceptions:
+1. If already registered, will be rejected
+2. Server retries sending the table of offered files a maximum of 2 times when the client ack is not received within 500ms
+
+-----------------------------------------------------------------------------------------------
+FILE OFFERING SECTION
+
+PLEASE NOTE that I have created 2 test folder in my Desktop, named as "testdir" and "testdir222"
+"testdir" folder is for the -> file offerer Dave
+"testdir222" folder is for the -> file requester Alice
+
+PLEASE NOTE that you must have test files in your test folder, so that you can offer files
+Here I have test3.pdf, btest2.py and atest1.py in my "testdir" folder
+
+Now Dave would like to offer 3 files:
+
+1. go to terminal 2, where you registered Dave
+2. setdir /Users/weiyaoli/Desktop/testdir
+3. offer test3.pdf btest2.py atest1.py (NOTE: if you would like to offer a single file, it will work)
+4. you can see the success msg now
+
+Exceptions:
+1. it will work as stated in the specification
+2. given an invalid directory, the client program doesn’t crash and an appropriate error message is printed
+3. offer command should fail with an appropriate error message if no setdir command has succeeded
+
+-----------------------------------------------------------------------------------------------
+FILE LISTING SECTION
+
+1. use command "list", so that you can see all offered files by all parties
+2. proper message when no files are being offered
+3. file updated when client table updated
+
+-----------------------------------------------------------------------------------------------
+FILE TRANSFER SECTION
+
+PLEASE NOTE THAT in terminal 3 Alice the requester, you need to set receiving directory first!
+
+1. set up receiving directory: setdir /Users/weiyaoli/Desktop/testdir222
+2. Alice wants to request test3.pdf: request test3.pdf Dave
+3. you should see the success msg (including original size and received size, they must match demonstrating no content loss happened)
+4. check your local testdir222 folder. You should see test3.pdf in this folder
+
+- Appropriate status messages will be printed at critical points of the file transfer, similar to the example provided in the specification
+- An appropriate error message should be printed when the client tries to request a non-existent file or a file from an incorrect client
+
+-----------------------------------------------------------------------------------------------
+DE-REGISTRATION SECTION
+
+1. run "dereg" command in the client terminal
