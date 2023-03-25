@@ -12,6 +12,18 @@ Implement a file transfer application with at least 3 clients and a server using
 - File Transfer
 - De-registration
 
+## Libraries
+import sys <br/>
+import socket<br/>
+import threading<br/>
+from threading import Thread<br/>
+import time<br/>
+from typing import Dict, List, Tuple, Union<br/>
+import signal<br/>
+import ipaddress<br/>
+import argparse<br/>
+import os<br/>
+
 ## Command-Line Instructions:
 ### Server Side
 _python main.py -s 5000_ <br/>
